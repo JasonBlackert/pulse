@@ -1,6 +1,6 @@
 {
     "unittest" : "DO_NOT_CHANGE",
-    "delay_main_s" : 60,
+    "delay_main_s" : 15,
     "logging_path" : "logs/service.log",
     "logging_level": "INFO",
     "nested_imports": true,
@@ -9,7 +9,8 @@
         "mqtt": {
             "host" : "10.0.10.21",
             "port" : 1883,
-            "topic": "insight"
+            "topic": "insight",
+            "client_id": null
         }
     }
 }

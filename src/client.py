@@ -10,18 +10,37 @@
 import logging
 import paho.mqtt.client as mqtt
 
+from itertools import product
 from threading import Lock, Thread
 from typing import Callable, Dict, List, Tuple, Any
 
-from helper.helper import acquire_lock
+from dataclasses import dataclass
+
+from helper.helper import acquire_lock, elapsed
+from helper.config import Configuration
 
 Handler = Callable[[str, str], None]
 
+@dataclass(frozen=True)
+class Subscription:
+    topic: str
+    qos: int = 0
+
+def subscribe(topic: str, qos: int = 0):
+    """Decorator: attach MQTT subscription metadata to a method."""
+    def deco(func: Callable[..., Any]):
+        subs = getattr(func, "__mqtt_subscriptions__", [])
+        subs.append(Subscription(topic=topic, qos=qos))
+        setattr(func, "__mqtt_subscriptions__", subs)
+        return func
+    return deco
 
 class MQTTClient:
-    def __init__(self, host="localhost", port=1883, client_id: str | None = None):
-        self._host = host
-        self._port = port
+    def __init__(self, configuration: Configuration = None):
+        self.config = configuration
+        self._host = self.config.mqtt["host"]
+        self._port = self.config.mqtt["port"]
+        self._client_id = self.config.mqtt["client_id"]
         self._lock = Lock()
 
         self.logger = logging.getLogger(__name__)
@@ -32,15 +51,12 @@ class MQTTClient:
         self._subs: Dict[str, int] = {}
 
         # client instantiation
-        self._client = mqtt.Client(client_id=client_id)
+        self._client = mqtt.Client(client_id=self._client_id)
         self._client.on_connect = self._on_connect
         self._client.on_message = self._on_message
         self._client.on_disconnect = self._on_disconnect
         self._client.reconnect_delay_set(min_delay=1, max_delay=30)
 
-        self._connect()
-
-    def _connect(self):
         self._client.connect(self._host, self._port)
         print(f"[MQTTClient] initialized on {self._host}:{self._port}")
 
@@ -152,4 +168,20 @@ class MQTTClient:
 
         print("[MQTT] Clean disconnect")
 
+    # -------- Publish Methods --------
+    @elapsed(out=logging.debug)
+    def publish(self, *args, **kwargs):
+        return getattr(self._client, "publish")(*args, **kwargs)
+
+    @elapsed(out=logging.debug)
+    def multicast(self, cmds: list[str], topic: str = "cmd", msg: str = "multicasting",) -> None:
+        self.logger.info(f"{msg}: {cmds}")
+        for cmd in cmds:
+            self.publish(f"{self.config.mqtt['topic']}/{topic}", cmd)
+
+    @elapsed(out=logging.debug)
+    def unicast(self, cmds: list[str], serials: list[str], topic: str = "cmd", msg="unicasting") -> None:
+        self.logger.info(f"{msg}: {cmds} to {serials}")
+        for cmd, serial in product(cmds, serials):
+            self.publish(f"{self.config.mqtt['topic']}/{serial}/{topic}", cmd)
 

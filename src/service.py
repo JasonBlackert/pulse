@@ -11,10 +11,7 @@ import time
 import json
 import logging
 
-from broker import MQTTBroker
-from client import MQTTClient
-from decorators import subscribe
-
+from client import MQTTClient, subscribe
 from helper.config import Configuration, load_json
 from helper.helper import init_command_set
 
@@ -31,12 +28,8 @@ class Service():
         logging.basicConfig(filename=self.config.logging_path, level=self.config.logging_level)
         self.logger = logging.getLogger(__name__)
 
-        # publish-only node
-        self.broker = MQTTBroker(self.config)
-        self.broker.start()
-
-        # client / dispatcher node
-        self.client = MQTTClient(self.config.mqtt["host"])
+        # pub-sub client / dispatcher node
+        self.client = MQTTClient(self.config)
         self.client.bind(self)
         self.client.loop_start()
 
@@ -45,8 +38,8 @@ class Service():
 
     def _init_command_sets(self):
         self.commands = {}
-        self.commands["broker"] = init_command_set(self.broker)
-        self.logger.info(self.commands["broker"].keys())
+        self.commands["client"] = init_command_set(self.client)
+        self.logger.info(self.commands["client"].keys())
         
     def run(self):
         main(self)
@@ -79,7 +72,7 @@ def main(srv: Service):
     # Begin Main Loop
     while True:
         try:
-            srv.broker.unicast([f"{hostname} is alive!"], [f"{os.getlogin()}"], "alive")
+            srv.client.unicast([f"{hostname} is alive!"], [f"{os.getlogin()}"], "alive")
             time.sleep(0.25)
         
             time.sleep(srv.config.delay_main_s)
