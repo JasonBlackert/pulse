@@ -5,20 +5,21 @@
     developer: "You initialize an MQTT broker and provide methods to listen and publish"
     broker.py: "Oh my god."
 """
-import itertools
 import logging
-
 import paho.mqtt.client as mqtt
 
+from socket import gethostname
+from itertools import product
 from helper.config import Configuration
 from helper.helper import elapsed, whoami
-
 
 
 class MQTTBroker:
     def __init__(self, configuration: Configuration):
         self.logger = logging.getLogger(__name__)
         self.logger.debug(f"Initializing: MQTTBroker ...")
+        self.hostname = gethostname()
+
         self.config = configuration
 
         self.client = mqtt.Client()
@@ -29,25 +30,21 @@ class MQTTBroker:
         self.logger.info("client connected with result code " + str(rc))
 
     def _on_message(self, client, userdata, msg):
+        self.logger.info(f"{msg.topic}: {msg}")
         if msg.topic != self.config.mqtt["topic"]:
             return
         self.logger.info(f"{msg.topic}")
 
-    def alive(self):
-        msg = "{self.client}: is alive!"
-        self.logger.debug(msg)
-        return msg
-
-    @elapsed
+    @elapsed(out=logging.info)
     def start(self):
         self.client.connect(self.config.mqtt["host"], self.config.mqtt["port"])
         self.client.loop_start()
 
-    @elapsed
+    #@elapsed(out=logging.info)
     def publish(self, *args, **kwargs):
         return getattr(self.client, "publish")(*args, **kwargs)
 
-    @elapsed
+    @elapsed(out=logging.info)
     def multicast(
         self,
         cmds: list[str],
@@ -56,9 +53,9 @@ class MQTTBroker:
     ) -> None:
         self.logger.info(f"{msg}: {cmds}")
         for cmd in cmds:
-            self.client.publish(f"{self.config.mqtt['topic']}/{topic}", cmd)
+            self.publish(f"{self.config.mqtt['topic']}/{topic}", cmd)
 
-    @elapsed
+    @elapsed(out=logging.info)
     def unicast(
         self,
         cmds: list[str],
@@ -67,6 +64,6 @@ class MQTTBroker:
         msg="unicasting",
     ) -> None:
         self.logger.info(f"{msg}: {cmds} to {serials}")
-        for cmd, serial in itertools.product(cmds, serials):
-            self.client.publish(f"{self.config.mqtt['topic']}/{serial}/{topic}", cmd)
+        for cmd, serial in product(cmds, serials):
+            self.publish(f"{self.config.mqtt['topic']}/{serial}/{topic}", cmd)
 
