@@ -15,7 +15,7 @@ from helper.helper import elapsed, whoami
 
 
 class MQTTBroker:
-    def __init__(self, configuration: Configuration, subscribe=False):
+    def __init__(self, configuration: Configuration):
         self.logger = logging.getLogger(__name__)
         self.logger.debug(f"Initializing: MQTTBroker ...")
         self.hostname = os.getlogin()
@@ -26,9 +26,8 @@ class MQTTBroker:
         self.base_topic = base.rstrip("/")
 
         self.client = mqtt.Client(client_id=self.hostname)
-        if subscribe:
-            self.client.on_connect = self._on_connect
-            self.client.on_message = self._on_message
+        self.client.on_connect = self._on_connect
+        self.client.on_message = self._on_message
 
     def _on_connect(self, client, userdata, flags, rc):
         self.logger.info("connected rc=%s", rc)

@@ -13,6 +13,7 @@ import logging
 from socket import gethostname
 
 from broker import MQTTBroker
+from client import MQTTClient
 from helper.config import Configuration, load_json
 from helper.helper import init_command_set
 
@@ -21,6 +22,8 @@ LOGGING_PATH = "logs/service.log"
 
 MAIN_DELAY_S = 15
 
+# controller / listener node
+client = MQTTClient("10.0.10.21")
 
 class Service():
     """Acts as main.py runs whatever services are desired"""
@@ -32,12 +35,9 @@ class Service():
 
         self.config = Configuration(configuration)
         # publish-only node
-        self.broker = MQTTBroker(self.config, subscribe=False)
+        self.broker = MQTTBroker(self.config)
         self.broker.start()
 
-        # controller / listener node
-        # self.client = MQTTBroker(self.config, subscribe=True)
-        # self.client.start()
 
         self.commands = {}
 
@@ -50,7 +50,12 @@ class Service():
     def run(self):
         main(self)
 
+    @client.subscribe("insight/reaper/servo")
+    def server_handler(topic, payload):
+        print(f"[SERVO] {topic} -> {payload}")
+
 def main(srv: Service):
+    client.loop_start()
     srv.logger.info(f"Initialized and running...")
 
     # Begin Main Loop
