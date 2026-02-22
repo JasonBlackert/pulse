@@ -1,5 +1,5 @@
 # Repos
-inc/helper
+src/helper/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
