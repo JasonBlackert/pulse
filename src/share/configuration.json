@@ -1,11 +1,11 @@
 {
     "unittest" : "DO_NOT_CHANGE",
-    "logging_level": "DEBUG",
+    "logging_level": "INFO",
     "nested_imports": true,
 
     "configuration": {
         "mqtt": {
-            "host" : "127.0.0.1",
+            "host" : "10.0.10.21",
             "port" : 1883,
             "topic": "insight"
         }

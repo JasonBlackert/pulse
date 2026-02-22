@@ -5,46 +5,58 @@
     developer: "You initialize an MQTT broker and provide methods to listen and publish"
     broker.py: "Oh my god."
 """
+import os
 import logging
 import paho.mqtt.client as mqtt
 
-from socket import gethostname
 from itertools import product
 from helper.config import Configuration
 from helper.helper import elapsed, whoami
 
 
 class MQTTBroker:
-    def __init__(self, configuration: Configuration):
+    def __init__(self, configuration: Configuration, subscribe=False):
         self.logger = logging.getLogger(__name__)
         self.logger.debug(f"Initializing: MQTTBroker ...")
-        self.hostname = gethostname()
+        self.hostname = os.getlogin()
 
         self.config = configuration
 
-        self.client = mqtt.Client()
-        self.client.on_connect = self._on_connect
-        self.client.on_message = self._on_message
+        base = self.config.mqtt["topic"]
+        self.base_topic = base.rstrip("/")
+
+        self.client = mqtt.Client(client_id=self.hostname)
+        if subscribe:
+            self.client.on_connect = self._on_connect
+            self.client.on_message = self._on_message
 
     def _on_connect(self, client, userdata, flags, rc):
-        self.logger.info("client connected with result code " + str(rc))
+        self.logger.info("connected rc=%s", rc)
+        # subscribe to all topics under base
+        client.subscribe(f"{self.base_topic}/#")
 
     def _on_message(self, client, userdata, msg):
-        self.logger.info(f"{msg.topic}: {msg}")
-        if msg.topic != self.config.mqtt["topic"]:
+        payload = msg.payload.decode("utf-8", errors="replace")
+        self.logger.info("rx %s: %s", msg.topic, payload)
+
+        # Example routing:
+        # insight/<hostname>/cmd  OR  insight/cmd
+        parts = msg.topic.split("/")
+        if len(parts) < 2 or parts[0] != self.base_topic:
             return
-        self.logger.info(f"{msg.topic}")
+
+        # TODO: route by parts[-1], parts[1], etc.
 
     @elapsed(out=logging.info)
     def start(self):
         self.client.connect(self.config.mqtt["host"], self.config.mqtt["port"])
         self.client.loop_start()
 
-    #@elapsed(out=logging.info)
+    @elapsed(out=logging.debug)
     def publish(self, *args, **kwargs):
         return getattr(self.client, "publish")(*args, **kwargs)
 
-    @elapsed(out=logging.info)
+    @elapsed(out=logging.debug)
     def multicast(
         self,
         cmds: list[str],
@@ -55,7 +67,7 @@ class MQTTBroker:
         for cmd in cmds:
             self.publish(f"{self.config.mqtt['topic']}/{topic}", cmd)
 
-    @elapsed(out=logging.info)
+    @elapsed(out=logging.debug)
     def unicast(
         self,
         cmds: list[str],
