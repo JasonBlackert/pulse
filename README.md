@@ -8,6 +8,7 @@ Foundation laid out to swap client between different brokers
 - Run `mr -t checkout` in working directory
 
 ## Tree:
+```Shell
 .
 ├── README.md
 └── src
@@ -34,6 +35,7 @@ Foundation laid out to swap client between different brokers
         └── configuration.json
 
 8 directories, 16 files
+```
 
 ### TODO:
 - [x] Swap between brokers on `insight/+/jump`
