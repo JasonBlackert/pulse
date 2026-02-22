@@ -6,25 +6,25 @@
     service.py: "Oh my god."
 """
 import os
+import re
 import time
 import json
 import logging
 
-from socket import gethostname
-
 from broker import MQTTBroker
 from client import MQTTClient
+from decorators import subscribe
+
 from helper.config import Configuration, load_json
 from helper.helper import init_command_set
 
 CONFIGURATION_PATH = "share/configuration.json"
 LOGGING_PATH = "logs/service.log"
 
-MAIN_DELAY_S = 15
+MAIN_DELAY_S = 60
 
-# controller / listener node
-client = MQTTClient("10.0.10.21")
 hostname = os.getlogin()
+PAYLOAD_ALIVE = f"{hostname} is alive"
 
 class Service():
     """Acts as main.py runs whatever services are desired"""
@@ -39,9 +39,17 @@ class Service():
         self.broker = MQTTBroker(self.config)
         self.broker.start()
 
-        self.commands = {}
+        # client / dispatcher node
+        self.client = MQTTClient(self.config.mqtt["host"])
+        self.client.bind(self)
+        self.client.loop_start()
 
+        # command set
+        self.commands = {}
         self._init_command_sets()
+
+    def _registster_handlers(self, cli: MQTTClient):
+        pass
 
     def _init_command_sets(self):
         self.commands["broker"] = init_command_set(self.broker)
@@ -50,18 +58,34 @@ class Service():
     def run(self):
         main(self)
 
-    @client.subscribe(f"insight/{hostname}/servo")
+    @subscribe(f"insight/commands/#")
+    def handle_cmds(self, topic, payload):
+        logging.info(f"[CMD {topic}]: {payload}")
+
+    @subscribe(f"insight/{hostname}/servo")
     def server_handler(topic, payload):
         print(f"[SERVO] {topic} -> {payload}")
 
+    @subscribe(f"insight/{hostname}/jump")
+    def jump(self, topic, payload):
+        logging.debug(f"Received jump request with {payload}")
+        
+        # Basic sanity (don’t let random strings become a host)
+        new_host = payload.strip()
+        new_port = 1883
+        if not re.match(r"^[a-zA-Z0-9\.\-]+$", new_host):
+            logging.warning(f"Rejecting invalid broker host: {new_host}")
+            return
+
+        self.client.switch_broker(new_host, new_port)
+
 def main(srv: Service):
-    client.loop_start()
     srv.logger.info(f"Initialized and running...")
 
     # Begin Main Loop
     while True:
         try:
-            srv.broker.unicast(["hello"], [f"{os.getlogin()}"], "cmd")
+            srv.broker.unicast([PAYLOAD_ALIVE], [f"{os.getlogin()}"], "alive")
             time.sleep(0.25)
         
             time.sleep(MAIN_DELAY_S)
