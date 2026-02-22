@@ -24,6 +24,7 @@ MAIN_DELAY_S = 15
 
 # controller / listener node
 client = MQTTClient("10.0.10.21")
+hostname = os.getlogin()
 
 class Service():
     """Acts as main.py runs whatever services are desired"""
@@ -38,7 +39,6 @@ class Service():
         self.broker = MQTTBroker(self.config)
         self.broker.start()
 
-
         self.commands = {}
 
         self._init_command_sets()
@@ -50,7 +50,7 @@ class Service():
     def run(self):
         main(self)
 
-    @client.subscribe("insight/reaper/servo")
+    @client.subscribe(f"insight/{hostname}/servo")
     def server_handler(topic, payload):
         print(f"[SERVO] {topic} -> {payload}")
 
