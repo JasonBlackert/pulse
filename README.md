@@ -4,7 +4,8 @@ Reworked self-healing mesh network.
 Foundation laid out to swap client between different brokers
 
 ## Setup
-- Install paho-mqtt
+- Install `paho-mqtt`
+- Install `myrepos`
 - Run `mr -t checkout` in working directory
 
 ## Tree:

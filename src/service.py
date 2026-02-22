@@ -45,21 +45,20 @@ class Service():
         main(self)
 
     # -------- Bound Commoands --------
-    @subscribe(f"insight/commands/#")
+    @subscribe("insight/+/cmd")
     def handle_cmds(self, topic, payload):
-        self.logger.info(f"[CMD {topic}]: {payload}")
+        self.logger.info(f"[{topic}]: {payload}")
 
     @subscribe(f"insight/{hostname}/servo")
-    def server_handler(topic, payload):
-        self.logger.info(f"[SERVO] {topic} -> {payload}")
+    def servo_handler(topic, payload):
+        self.logger.info(f"[{topic}] -> {payload}")
 
     @subscribe(f"insight/{hostname}/jump")
     def jump(self, topic, payload):
         self.logger.debug(f"Received jump request with {payload}")
         
-        new_host, new_port = (payload.split(":", 1) + [self.config.mqtt["port"]])[:2]
-
         # Basic sanity (don’t let random strings become a host)
+        new_host, new_port = (payload.split(":", 1) + [self.config.mqtt["port"]])[:2]
         if not re.match(r"^[a-zA-Z0-9\.\-]+$", new_host):
             self.logger.warning(f"Rejecting invalid broker host: {new_host}")
             return
@@ -69,12 +68,9 @@ class Service():
 def main(srv: Service):
     srv.logger.info(f"Initialized and running...")
 
-    # Begin Main Loop
     while True:
         try:
             srv.client.unicast([f"{hostname} is alive!"], [f"{os.getlogin()}"], "alive")
-            time.sleep(0.25)
-        
             time.sleep(srv.config.delay_main_s)
         except KeyboardInterrupt as ke:
             srv.logger.error(f"Exiting main-loop: {ke}")
