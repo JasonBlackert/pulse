@@ -19,22 +19,18 @@ from helper.config import Configuration, load_json
 from helper.helper import init_command_set
 
 CONFIGURATION_PATH = "share/configuration.json"
-LOGGING_PATH = "logs/service.log"
-
-MAIN_DELAY_S = 60
 
 hostname = os.getlogin()
-PAYLOAD_ALIVE = f"{hostname} is alive"
 
 class Service():
     """Acts as main.py runs whatever services are desired"""
     def __init__(self):
         configuration = load_json(CONFIGURATION_PATH)
+        self.config = Configuration(configuration)
 
-        logging.basicConfig(filename=LOGGING_PATH, level=configuration["logging_level"])
+        logging.basicConfig(filename=self.config.logging_path, level=self.config.logging_level)
         self.logger = logging.getLogger(__name__)
 
-        self.config = Configuration(configuration)
         # publish-only node
         self.broker = MQTTBroker(self.config)
         self.broker.start()
@@ -45,36 +41,34 @@ class Service():
         self.client.loop_start()
 
         # command set
-        self.commands = {}
         self._init_command_sets()
 
-    def _registster_handlers(self, cli: MQTTClient):
-        pass
-
     def _init_command_sets(self):
+        self.commands = {}
         self.commands["broker"] = init_command_set(self.broker)
         self.logger.info(self.commands["broker"].keys())
         
     def run(self):
         main(self)
 
+    # -------- Bound Commoands --------
     @subscribe(f"insight/commands/#")
     def handle_cmds(self, topic, payload):
-        logging.info(f"[CMD {topic}]: {payload}")
+        self.logger.info(f"[CMD {topic}]: {payload}")
 
     @subscribe(f"insight/{hostname}/servo")
     def server_handler(topic, payload):
-        print(f"[SERVO] {topic} -> {payload}")
+        self.logger.info(f"[SERVO] {topic} -> {payload}")
 
     @subscribe(f"insight/{hostname}/jump")
     def jump(self, topic, payload):
-        logging.debug(f"Received jump request with {payload}")
+        self.logger.debug(f"Received jump request with {payload}")
         
+        new_host, new_port = (payload.split(":", 1) + [self.config.mqtt["port"]])[:2]
+
         # Basic sanity (don’t let random strings become a host)
-        new_host = payload.strip()
-        new_port = 1883
         if not re.match(r"^[a-zA-Z0-9\.\-]+$", new_host):
-            logging.warning(f"Rejecting invalid broker host: {new_host}")
+            self.logger.warning(f"Rejecting invalid broker host: {new_host}")
             return
 
         self.client.switch_broker(new_host, new_port)
@@ -85,10 +79,10 @@ def main(srv: Service):
     # Begin Main Loop
     while True:
         try:
-            srv.broker.unicast([PAYLOAD_ALIVE], [f"{os.getlogin()}"], "alive")
+            srv.broker.unicast([f"{hostname} is alive!"], [f"{os.getlogin()}"], "alive")
             time.sleep(0.25)
         
-            time.sleep(MAIN_DELAY_S)
+            time.sleep(srv.config.delay_main_s)
         except KeyboardInterrupt as ke:
             srv.logger.error(f"Exiting main-loop: {ke}")
             break

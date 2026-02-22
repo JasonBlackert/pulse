@@ -1,25 +1,22 @@
+"""
+    Author: Jason E. Blackert
+
+    client.py: "What is my purpose?"
+    developer: "You initialize an MQTT client and provide methods to listen and swap
+                to other brokers."
+    client.py: "Oh my god."
+"""
 # client.py
 import logging
-
-from threading import Lock, Thread
-
 import paho.mqtt.client as mqtt
 
+from threading import Lock, Thread
 from typing import Callable, Dict, List, Tuple, Any
 
 from helper.helper import acquire_lock
 
 Handler = Callable[[str, str], None]
 
-'''
-    def subscribe(self, topic: str):
-        """Decorator: register handler for topic"""
-        def decorator(func: Callable):
-            self._handlers.setdefault(topic, []).append(func)
-            self._client.subscribe(topic)
-            return func
-        return decorator
-'''
 
 class MQTTClient:
     def __init__(self, host="localhost", port=1883, client_id: str | None = None):
@@ -67,7 +64,6 @@ class MQTTClient:
                 except Exception:
                     pass
 
-
     # -------- Binding (one-time) --------
     def bind(self, service_obj: Any):
         """
@@ -80,14 +76,16 @@ class MQTTClient:
                 continue
 
             for sub in subs:
-                self._handlers.setdefault(sub.topic, []).append(
-                    lambda topic, payload, m=meth: m(topic, payload)
-                )
+                self._handlers.setdefault(sub.topic, []).append( lambda topic, payload, m=meth: m(topic, payload))
                 # keep highest qos if same topic appears multiple times
                 self._subs[sub.topic] = max(self._subs.get(sub.topic, 0), sub.qos)
 
         # If already connected, subscribe immediately; otherwise on_connect will do it.
-        with self._lock:
+        with acquire_lock(self._lock, timeout=1) as acquired:
+            if not acquired:
+                self.logger.warning(f"Could not acquire {self._lock}") 
+                return
+
             for topic, qos in self._subs.items():
                 self._client.subscribe(topic, qos=qos)
 
@@ -98,7 +96,11 @@ class MQTTClient:
         Runs the reconnect sequence in a separate thread to avoid callback-thread deadlocks.
         """
         def _do_switch():
-            with self._lock:
+            with acquire_lock(self._lock, timeout=1) as acquired:
+                if not acquired:
+                    self.logger.warning(f"Could not acquire {self._lock}") 
+                    return
+
                 print(f"[MQTT] Switching broker {self._host}:{self._port} -> {new_host}:{new_port}")
                 try:
                     self._client.disconnect()
@@ -117,14 +119,18 @@ class MQTTClient:
 
         Thread(target=_do_switch, daemon=True).start()
 
-    # -------- Callbacks --------
+    # -------- Callbacks ---------
     def _on_connect(self, client, userdata, flags, rc):
         print(f"[MQTT] Connected rc={rc} to {self._host}:{self._port}")
         if rc != 0:
             return
 
         # Always re-subscribe on connect/reconnect
-        with self._lock:
+        with acquire_lock(self._lock, timeout=1) as acquired:
+            if not acquired:
+                self.logger.warning(f"Could not acquire {self._lock}") 
+                return
+            
             for topic, qos in self._subs.items():
                 client.subscribe(topic, qos=qos)
                 print(f"[MQTT] Subscribed {topic} qos={qos}")

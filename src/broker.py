@@ -29,6 +29,7 @@ class MQTTBroker:
         self.client.on_connect = self._on_connect
         self.client.on_message = self._on_message
 
+    # -------- Callbacks --------
     def _on_connect(self, client, userdata, flags, rc):
         self.logger.info("connected rc=%s", rc)
         # subscribe to all topics under base

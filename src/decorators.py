@@ -1,4 +1,10 @@
-# decorators.py
+"""
+    Author: Jason E. Blackert
+
+    decorators.py: "What is my purpose?"
+    developer: "Provide a decorator for other modules to use, not quite a helper."
+    decorators.py: "Oh my god."
+"""
 
 from __future__ import annotations
 from dataclasses import dataclass
