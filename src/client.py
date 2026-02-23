@@ -45,10 +45,8 @@ class MQTTClient:
 
         self.logger = logging.getLogger(__name__)
 
-        # topic -> list[handler]
-        self._handlers: Dict[str, List[Handler]] = {}
-        # topic -> qos
-        self._subs: Dict[str, int] = {}
+        self._handlers: Dict[str, List[Handler]] = {} # topic -> list[handler]
+        self._subs: Dict[str, int] = {} # topic -> qos
 
         # client instantiation
         self._client = mqtt.Client(client_id=self._client_id)
@@ -58,13 +56,10 @@ class MQTTClient:
         self._client.reconnect_delay_set(min_delay=1, max_delay=30)
 
         self._client.connect(self._host, self._port)
-        print(f"[MQTTClient] initialized on {self._host}:{self._port}")
+        print(f"[MQTT] Initialized on {self._host}:{self._port}")
 
     def loop_start(self):
         self._client.loop_start()
-
-    def loop_forever(self):
-        self._client.loop_forever()
 
     def stop(self):
         with acquire_lock(self._lock, timeout=1) as acquired:
@@ -75,16 +70,12 @@ class MQTTClient:
             try:
                 self._client.loop_stop()
             finally:
-                try:
+                if self._client.is_connected():
                     self._client.disconnect()
-                except Exception:
-                    pass
 
     # -------- Binding (one-time) --------
     def bind(self, service_obj: Any):
-        """
-        Scan service_obj for methods decorated with @subscribe and register them once.
-        """
+        """Scan service_obj for methods decorated with @subscribe and register them once."""
         for name in dir(service_obj):
             meth = getattr(service_obj, name, None)
             subs = getattr(meth, "__mqtt_subscriptions__", None)
@@ -107,10 +98,8 @@ class MQTTClient:
 
      # -------- Broker switching (no rebind needed) --------
     def switch_broker(self, new_host: str, new_port: int = 1883):
-        """
-        Switch brokers while keeping handlers/subscriptions.
-        Runs the reconnect sequence in a separate thread to avoid callback-thread deadlocks.
-        """
+        """Switch brokers while keeping handlers/subscriptions.
+        Runs the reconnect sequence in a separate thread to avoid callback-thread deadlocks. """
         def _do_switch():
             with acquire_lock(self._lock, timeout=1) as acquired:
                 if not acquired:
@@ -139,6 +128,7 @@ class MQTTClient:
     def _on_connect(self, client, userdata, flags, rc):
         print(f"[MQTT] Connected rc={rc} to {self._host}:{self._port}")
         if rc != 0:
+            self.logger.error(f"[MQTT] Unexpected disconnect rc={rc}")
             return
 
         # Always re-subscribe on connect/reconnect
@@ -152,7 +142,7 @@ class MQTTClient:
                 print(f"[MQTT] Subscribed {topic} qos={qos}")
 
     def _on_message(self, client, userdata, msg):
-        print(f"message received")
+        print("[MQTT] message received")
         payload = msg.payload.decode()
         topic = msg.topic
 
@@ -163,7 +153,7 @@ class MQTTClient:
 
     def _on_disconnect(self, client, userdata, rc):
         if rc != 0:
-            print(f"[MQTT] Unexpected disconnect rc={rc}")
+            self.logger.error(f"[MQTT] Unexpected disconnect rc={rc}")
             return 
 
         print("[MQTT] Clean disconnect")

@@ -15,14 +15,12 @@ from client import MQTTClient, subscribe
 from helper.config import Configuration, load_json
 from helper.helper import init_command_set
 
-CONFIGURATION_PATH = "share/configuration.json"
-
 hostname = os.getlogin()
 
 class Service():
     """Acts as main.py runs whatever services are desired"""
     def __init__(self):
-        configuration = load_json(CONFIGURATION_PATH)
+        configuration = load_json("share/configuration.json")
         self.config = Configuration(configuration)
 
         logging.basicConfig(filename=self.config.logging_path, level=self.config.logging_level)
@@ -41,9 +39,6 @@ class Service():
         self.commands["client"] = init_command_set(self.client)
         self.logger.info(self.commands["client"].keys())
         
-    def run(self):
-        main(self)
-
     # -------- Bound Commoands --------
     @subscribe("insight/+/cmd")
     def handle_cmds(self, topic, payload):
@@ -65,7 +60,8 @@ class Service():
 
         self.client.switch_broker(new_host, new_port)
 
-def main(srv: Service):
+def main():
+    srv = Service()
     srv.logger.info(f"Initialized and running...")
 
     while True:
@@ -74,8 +70,9 @@ def main(srv: Service):
             time.sleep(srv.config.delay_main_s)
         except KeyboardInterrupt as ke:
             srv.logger.error(f"Exiting main-loop: {ke}")
+            srv.client.stop()
             break
         
 if __name__ == "__main__":
-    srv = Service()
-    srv.run()
+    main()
+
