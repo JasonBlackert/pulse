@@ -11,6 +11,12 @@
             "port" : 1883,
             "topic": "insight",
             "client_id": null
+        },
+        "brokers": {
+            "daemonpi": "10.0.10.20",
+            "scuba": "10.0.10.21",
+            "octo": "10.0.10.22",
+            "joyboy" : "10.0.10.23"
         }
     }
 }

@@ -52,6 +52,9 @@ class Service():
     def jump(self, topic, payload):
         self.logger.debug(f"Received jump request with {payload}")
         
+        if payload in self.config.brokers.keys():
+            payload = self.config.brokers[payload]
+
         # Basic sanity (don’t let random strings become a host)
         new_host, new_port = (payload.split(":", 1) + [self.config.mqtt["port"]])[:2]
         if not re.match(r"^[a-zA-Z0-9\.\-]+$", new_host):
@@ -59,6 +62,10 @@ class Service():
             return
 
         self.client.switch_broker(new_host, new_port)
+
+    # --------- Serving Methods ---------
+    def provide_status(self):
+        pass
 
 def main():
     srv = Service()
