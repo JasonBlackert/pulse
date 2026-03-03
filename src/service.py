@@ -9,6 +9,7 @@ import os
 import re
 import time
 import json
+import socket
 import logging
 
 from client import MQTTClient, subscribe
@@ -16,6 +17,30 @@ from helper.config import Configuration, load_json
 from helper.helper import init_command_set
 
 hostname = os.getlogin()
+
+class Status():
+    def __init__(self):
+        self.available_modes = ["idle", "running", "stopped", "swapping"]
+        self.mode = "idle"
+        
+        self.report_dict = {
+            "name" : hostname,
+            "ip": socket.gethostbyname(hostname),
+            "time" : time.time(),
+            "mode" : self.mode,
+            "reason": None
+        }
+
+    def report(self, reason: str = "reason"):
+        """Generates status report."""
+        self.report_dict["time"] = time.time()
+        
+        if self.mode in self.available_modes:
+            self.report_dict["mode"] = self.mode
+            
+        self.report_dict["reason"] = reason
+        return self.report_dict
+
 
 class Service():
     """Acts as main.py runs whatever services are desired"""
@@ -25,6 +50,9 @@ class Service():
 
         logging.basicConfig(filename=self.config.logging_path, level=self.config.logging_level)
         self.logger = logging.getLogger(__name__)
+
+        # Initialize Status Report
+        self.status = Status()
 
         # pub-sub client / dispatcher node
         self.client = MQTTClient(self.config)
@@ -43,6 +71,8 @@ class Service():
     @subscribe("insight/+/cmd")
     def handle_cmds(self, topic, payload):
         self.logger.info(f"[{topic}]: {payload}")
+        if payload.strip() == "status":
+            self.provide_status()
 
     @subscribe(f"insight/{hostname}/servo")
     def servo_handler(topic, payload):
@@ -65,7 +95,7 @@ class Service():
 
     # --------- Serving Methods ---------
     def provide_status(self):
-        pass
+        self.client.unicast([f"{self.status.report()}"], [f"{os.getlogin()}"], "status")
 
 def main():
     srv = Service()
@@ -73,7 +103,8 @@ def main():
 
     while True:
         try:
-            srv.client.unicast([f"{hostname} is alive!"], [f"{os.getlogin()}"], "alive")
+            report = srv.status.report()
+            srv.client.unicast([f"{report}"], [f"{os.getlogin()}"], "alive")
             time.sleep(srv.config.delay_main_s)
         except KeyboardInterrupt as ke:
             srv.logger.error(f"Exiting main-loop: {ke}")
