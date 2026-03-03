@@ -5,7 +5,6 @@
     developer:  "You act as main.py, running whatever service is desired."
     service.py: "Oh my god."
 """
-import os
 import re
 import time
 import json
@@ -16,16 +15,21 @@ from client import MQTTClient, subscribe
 from helper.config import Configuration, load_json
 from helper.helper import init_command_set
 
-hostname = os.getlogin()
+hostname = socket.gethostname()
 
 class Status():
     def __init__(self):
+        self.logger = logging.getLogger(__name__)
+
         self.available_modes = ["idle", "running", "stopped", "swapping"]
         self.mode = "idle"
-        
+        self.ip_addr = socket.gethostbyname(hostname)
+
+        print(f"{hostname}@{self.ip_addr}")
+
         self.report_dict = {
             "name" : hostname,
-            "ip": socket.gethostbyname(hostname),
+            "ip": self.ip_addr,
             "time" : time.time(),
             "mode" : self.mode,
             "reason": None
@@ -51,6 +55,7 @@ class Service():
         logging.basicConfig(filename=self.config.logging_path, level=self.config.logging_level)
         self.logger = logging.getLogger(__name__)
 
+        self.logger.info(hostname)
         # Initialize Status Report
         self.status = Status()
 
@@ -95,7 +100,7 @@ class Service():
 
     # --------- Serving Methods ---------
     def provide_status(self):
-        self.client.unicast([f"{self.status.report()}"], [f"{os.getlogin()}"], "status")
+        self.client.unicast([f"{self.status.report()}"], [f"{hostname}"], "status")
 
 def main():
     srv = Service()
@@ -104,7 +109,7 @@ def main():
     while True:
         try:
             report = srv.status.report()
-            srv.client.unicast([f"{report}"], [f"{os.getlogin()}"], "alive")
+            srv.client.unicast([f"{report}"], [f"{hostname}"], "alive")
             time.sleep(srv.config.delay_main_s)
         except KeyboardInterrupt as ke:
             srv.logger.error(f"Exiting main-loop: {ke}")
