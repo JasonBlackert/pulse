@@ -1,5 +1,5 @@
 """
-    Author: Jason E. Blackert
+    developer: Jason E. Blackert
 
     service.py: "What is my purpose?"
     developer:  "You act as main.py, running whatever service is desired."
@@ -20,34 +20,34 @@ hostname = socket.gethostname()
 class Status():
     def __init__(self):
         self.logger = logging.getLogger(__name__)
-
         self.available_modes = ["idle", "running", "stopped", "swapping"]
         self.mode = "idle"
-        self.ip_addr = socket.gethostbyname(hostname)
+        self.ip_addr = self._get_ip_address()
+        self.logger.info(f"{hostname}@{self.ip_addr}")
 
-        print(f"{hostname}@{self.ip_addr}")
 
-        self.report_dict = {
+    def _get_ip_address(self) -> str:
+        """ Safely get IP address with fallback."""
+        try:
+            return socket.gethostbyname(hostname)
+        except socket.gaierror:
+            self.logger.warning("Could not resolve hostnamne, using localhost")
+            return "127.0.0.1"
+
+    def report(self, reason: str = "reason"):
+        """Generates immutable status report."""
+
+        return {
             "name" : hostname,
             "ip": self.ip_addr,
             "time" : time.time(),
-            "mode" : self.mode,
-            "reason": None
+            "mode" : self.mode if self.mode in self.available_modes else "unknown",
+            "reason": reason
         }
-
-    def report(self, reason: str = "reason"):
-        """Generates status report."""
-        self.report_dict["time"] = time.time()
-        
-        if self.mode in self.available_modes:
-            self.report_dict["mode"] = self.mode
-            
-        self.report_dict["reason"] = reason
-        return self.report_dict
-
 
 class Service():
     """Acts as main.py runs whatever services are desired"""
+
     def __init__(self):
         configuration = load_json("share/configuration.json")
         self.config = Configuration(configuration)
@@ -80,7 +80,7 @@ class Service():
             self.provide_status()
 
     @subscribe(f"insight/{hostname}/servo")
-    def servo_handler(topic, payload):
+    def servo_handler(self, topic, payload):
         self.logger.info(f"[{topic}] -> {payload}")
 
     @subscribe(f"insight/{hostname}/jump")
@@ -100,7 +100,8 @@ class Service():
 
     # --------- Serving Methods ---------
     def provide_status(self):
-        self.client.unicast([f"{self.status.report()}"], [f"{hostname}"], "status")
+        report = self.status.report(reason="on_request")
+        self.client.unicast([json.dumps(report)], [hostname], "status")
 
 def main():
     srv = Service()
@@ -109,7 +110,7 @@ def main():
     while True:
         try:
             report = srv.status.report()
-            srv.client.unicast([f"{report}"], [f"{hostname}"], "alive")
+            srv.client.unicast([json.dumps(report)], [f"{hostname}"], "alive")
             time.sleep(srv.config.delay_main_s)
         except KeyboardInterrupt as ke:
             srv.logger.error(f"Exiting main-loop: {ke}")
