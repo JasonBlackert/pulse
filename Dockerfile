@@ -1,4 +1,4 @@
-FROM python:3.13-slim
+FROM python:3.14.3-slim
 
 LABEL version="1.0"
 LABEL description="Deployable MQTT Mesh Network"

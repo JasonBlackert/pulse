@@ -1,12 +1,13 @@
 
 CMD ?=
 NAME := pulse
-DOCKER_NAME := pulse-container
+DOCKER_NAME := pulse-service
 
 all: build
-all: run
+all: up
 
-build:
+# --- Local Methods ---
+build-local:
 	sudo docker build $(CMD) -t $(NAME) -f Dockerfile .
 
 build-quiet: CMD := --quiet
@@ -21,7 +22,21 @@ run: exec
 debug:
 	sudo docker run --network=host --rm -it --name $(NAME) bash
 
+# --- Compose Methods ---
+build:
+	sudo docker compose build
+
+up:
+	sudo docker compose up -d --build
+
+down:
+	sudo docker compose down
+
+logs:
+	sudo docker compose logs -f
+
 kill:
 	sudo docker kill $(DOCKER_NAME)
 
-clean: kill
+clean:
+	sudo docker compose down --rmi all --volumes

@@ -1,6 +1,6 @@
 {
     "unittest" : "DO_NOT_CHANGE",
-    "delay_main_s" : 15,
+    "delay_main_s" : 60,
     "logging_path" : "logs/service.log",
     "logging_level": "INFO",
     "nested_imports": true,
