@@ -1,0 +1,8 @@
+# version: '3.8'
+services:
+  pulse:
+    build: .
+    image: pulse # override image name
+    container_name: pulse-service
+    network_mode: "host"
+    restart: unless-stopped
