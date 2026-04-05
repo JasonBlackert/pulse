@@ -1,9 +1,12 @@
 {
     "unittest" : "DO_NOT_CHANGE",
-    "delay_main_s" : 60,
+    "delay_main_s" : 2,
     "logging_path" : "logs/service.log",
     "logging_level": "INFO",
     "nested_imports": true,
+    "primary_timeout_s": 30,
+    "broker_failure_timeout_s": 30,
+    "discovery_timeout_s": 15,
 
     "configuration": {
         "mqtt": {
@@ -13,6 +16,7 @@
             "client_id": null
         },
         "brokers": {
+            "reaper": "10.0.10.19",
             "daemonpi": "10.0.10.20",
             "scuba": "10.0.10.21",
             "octo": "10.0.10.22",
