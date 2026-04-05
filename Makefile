@@ -2,41 +2,43 @@
 CMD ?=
 NAME := pulse
 DOCKER_NAME := pulse-service
+COMPOSE := $(shell docker compose version >/dev/null 2>&1 && echo "docker compose" || echo "docker-compose")
 
 all: build
 all: up
 
 # --- Local Methods ---
 build-local:
-	sudo docker build $(CMD) -t $(NAME) -f Dockerfile .
+	docker build $(CMD) -t $(NAME) -f Dockerfile .
 
 build-quiet: CMD := --quiet
 build-quiet: build
 
 exec:
-	 sudo docker run --network=host --rm --name $(DOCKER_NAME) $(NAME)
+	 docker run --network=host --rm --name $(DOCKER_NAME) $(NAME)
 
 run: CMD := $(CMD)
 run: exec
 
 debug:
-	sudo docker run --network=host --rm -it --name $(NAME) bash
+	docker run --network=host --rm -it --name $(NAME) bash
 
 # --- Compose Methods ---
 build:
-	sudo docker compose build
+	$(COMPOSE) build
 
 up:
-	sudo docker compose up -d --build
+	docker rm -f $(DOCKER_NAME) 2>/dev/null || true
+	$(COMPOSE) up -d --build
 
 down:
-	sudo docker compose down
+	$(COMPOSE) down
 
 logs:
-	sudo docker compose logs -f
+	$(COMPOSE) logs -f
 
 kill:
-	sudo docker kill $(DOCKER_NAME)
+	docker kill $(DOCKER_NAME)
 
 clean:
-	sudo docker compose down --rmi all --volumes
+	$(COMPOSE) down --rmi all --volumes
